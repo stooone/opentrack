@@ -32,7 +32,16 @@ static constexpr int video_capture_backend =
 #elif !defined __APPLE__
     cv::CAP_V4L2;
 #else
-    cv::CAP_ANY;
+    // macOS: force AVFoundation. Was cv::CAP_ANY, which lets OpenCV
+    // auto-pick between AVFoundation, FFmpeg, and GStreamer - each
+    // uses a different device enumeration and index order, so the
+    // user-visible camera name in the dropdown couldn't be mapped to
+    // a stable device index. Our get_camera_names() (via
+    // compat/camera-names-apple.mm) enumerates with AVFoundation's
+    // devicesWithMediaType:, so pinning the OpenCV backend to the
+    // same API guarantees the index we return is the index OpenCV
+    // will open.
+    cv::CAP_AVFOUNDATION;
 #endif
 
     cam(int idx);

@@ -36,7 +36,12 @@ if(OpenCV_FOUND AND ONNXRuntime_FOUND AND OpenMP_FOUND)
 
     # OpenMP::OpenMP_CXX doesn't set up the -fopenmp linking option, so set it up ourselves.
     if(NOT MSVC)
-        target_link_options(${self} PUBLIC ${OpenMP_CXX_FLAGS})
+        # OpenMP_CXX_FLAGS is a space-separated string (e.g. "-Xclang -fopenmp"
+        # with Homebrew libomp on macOS). target_link_options expects a list,
+        # so split it first, otherwise the whole string lands as a single
+        # argument and clang rejects it.
+        separate_arguments(_otr_openmp_link_flags UNIX_COMMAND "${OpenMP_CXX_FLAGS}")
+        target_link_options(${self} PUBLIC ${_otr_openmp_link_flags})
     endif()
 
     install(
