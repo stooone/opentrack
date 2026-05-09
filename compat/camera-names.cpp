@@ -13,8 +13,12 @@
 #endif
 
 #ifdef __APPLE__
-#   include <QCameraDevice>
-#   include <QMediaDevices>
+// Forward-declared from camera-names-apple.mm. The .mm source does
+// the AVFoundation enumeration in Objective-C++ so this .cpp file can
+// stay pure C++.
+namespace compat_apple {
+    std::vector<std::tuple<QString, int>> get_camera_names_apple();
+}
 #endif
 
 #ifdef __linux__
@@ -132,8 +136,13 @@ std::vector<std::tuple<QString, int>> get_camera_names()
         }
     }
 #elif defined __APPLE__
-    for (const QCameraDevice& camera_info : QMediaDevices::videoInputs())
-        ret.push_back({ camera_info.description(), ret.size() });
+    // Enumerate via AVFoundation directly (see camera-names-apple.mm
+    // for the rationale). QMediaDevices returns cameras in a
+    // different order after USB hot-plug, which mismatches OpenCV's
+    // CAP_AVFOUNDATION backend indexing and causes "picked X, got Y"
+    // bugs. Using AVFoundation here guarantees the index we return
+    // is the one OpenCV will actually open.
+    ret = compat_apple::get_camera_names_apple();
 #endif
 
     return ret;
