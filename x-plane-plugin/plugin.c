@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/file.h>
 #include <sys/mman.h>
 #include <limits.h>
@@ -79,6 +80,18 @@ shm_wrapper* shm_wrapper_init(const char *shm_name, const char *mutex_name, int 
 {
     (void)mutex_name;
     shm_wrapper* self = malloc(sizeof(shm_wrapper));
+    if (!self) {
+        fprintf(stderr, "opentrack: shm_wrapper_init: malloc failed\n");
+        return NULL;
+    }
+    /* Initialize all fields up-front so partial-failure paths (e.g. shm_open
+       returning -1) never leave us with garbage state that later crashes
+       shm_wrapper_free via munmap(self->mem, self->size) with an
+       uninitialized size. */
+    self->fd = -1;
+    self->mem = MAP_FAILED;
+    self->size = 0;
+
     char shm_filename[NAME_MAX];
     shm_filename[0] = '/';
     strncpy(shm_filename+1, shm_name, NAME_MAX-2);
@@ -86,8 +99,31 @@ shm_wrapper* shm_wrapper_init(const char *shm_name, const char *mutex_name, int 
     /* (void) shm_unlink(shm_filename); */
 
     self->fd = shm_open(shm_filename, O_RDWR | O_CREAT, 0600);
-    (void) ftruncate(self->fd, mapSize);
-    self->mem = mmap(NULL, mapSize, PROT_READ|PROT_WRITE, MAP_SHARED, self->fd, (off_t)0);
+    if (self->fd == -1) {
+        fprintf(stderr, "opentrack: shm_open(%s) failed: %s\n",
+                shm_filename, strerror(errno));
+        free(self);
+        return NULL;
+    }
+    if (ftruncate(self->fd, mapSize) == -1) {
+        fprintf(stderr, "opentrack: ftruncate(%s, %d) failed: %s\n",
+                shm_filename, mapSize, strerror(errno));
+        close(self->fd);
+        free(self);
+        return NULL;
+    }
+    self->mem = mmap(NULL, mapSize, PROT_READ|PROT_WRITE, MAP_SHARED,
+                     self->fd, (off_t)0);
+    if (self->mem == MAP_FAILED) {
+        fprintf(stderr, "opentrack: mmap(%s, %d) failed: %s\n",
+                shm_filename, mapSize, strerror(errno));
+        close(self->fd);
+        free(self);
+        return NULL;
+    }
+    /* Record the mapping size so shm_wrapper_free can pass it to munmap.
+       Without this assignment self->size is read uninitialized later. */
+    self->size = mapSize;
     return self;
 }
 
@@ -208,9 +244,18 @@ int XPluginStart (char* outName, char* outSignature, char* outDescription) {
                                NULL);
 
 
-    if (view_x && view_y && view_z && view_heading && view_pitch && track_toggle && translation_disable_toggle) {
+    /* view_roll was previously omitted from this null-check guard, so on an
+       X-Plane build that didn't expose `pilots_head_phi` the plugin would
+       happily proceed and crash on the first XPLMSetDataf(view_roll, ...)
+       call inside write_head_position. */
+    if (view_x && view_y && view_z && view_heading && view_pitch && view_roll
+        && track_toggle && translation_disable_toggle) {
         lck_posix = shm_wrapper_init(WINE_SHM_NAME, WINE_MTX_NAME, sizeof(WineSHM));
-        if (lck_posix->mem == MAP_FAILED) {
+        /* shm_wrapper_init now returns NULL on any failure (was previously
+           assumed non-NULL with mem set to MAP_FAILED). The previous
+           lck_posix->mem deref on the failure path was itself a latent
+           crash if shm_wrapper_init had returned NULL from a malloc fail. */
+        if (!lck_posix) {
             fprintf(stderr, "opentrack failed to init SHM!\n");
             return 0;
         }
@@ -227,6 +272,22 @@ int XPluginStart (char* outName, char* outSignature, char* outDescription) {
 
 PLUGIN_API OTR_GENERIC_EXPORT
 void XPluginStop (void) {
+    /* Tear down everything we registered in XPluginStart, in reverse order.
+       Without these unregister calls X-Plane's "Reload Plugins" path leaves
+       dangling function pointers (the dylib is unloaded but the registered
+       flight-loop callback and command handlers still point into it),
+       which crashes on the next dispatch. */
+    XPLMUnregisterFlightLoopCallback(write_head_position, NULL);
+    if (track_toggle) {
+        XPLMUnregisterCommandHandler(track_toggle, TrackToggleHandler,
+                                     1, NULL);
+        track_toggle = NULL;
+    }
+    if (translation_disable_toggle) {
+        XPLMUnregisterCommandHandler(translation_disable_toggle,
+                                     TranslationToggleHandler, 1, NULL);
+        translation_disable_toggle = NULL;
+    }
     if (lck_posix)
     {
         shm_wrapper_free(lck_posix);
@@ -253,6 +314,13 @@ void XPluginReceiveMessage(XPLMPluginID    inFromWho,
                            int             inMessage,
                            void *          inParam)
 {
-    if (inMessage == XPLM_MSG_AIRPORT_LOADED)
+    /* Re-capture the head-position offset whenever the underlying
+       sim/graphics/view/pilots_head_{x,y,z} datarefs may have been reset
+       by the sim. Originally only AIRPORT_LOADED was handled, but the
+       PLANE_LOADED case is much more common (every aircraft change) and
+       previously left a one-aircraft-cycle offset until the user
+       re-centered manually. */
+    if (inMessage == XPLM_MSG_AIRPORT_LOADED ||
+        inMessage == XPLM_MSG_PLANE_LOADED)
         reinit_offset();
 }
