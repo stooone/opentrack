@@ -50,11 +50,11 @@ namespace papertracker {
 
     /* Rotate marker bits.
     */
-    cv::Mat rotate_marker_bits(const cv::Mat &in)
+    void rotate_marker_bits(cv::Mat &bits)
     {
-        cv::Mat out;
-        cv::rotate(in, out, cv::ROTATE_90_CLOCKWISE);
-        return out;
+        // In-place clockwise rotation via transpose and flip.
+        cv::transpose(bits, bits);
+        cv::flip(bits, bits, 1);
     }
 
     /* Analyze candidate 6x6 marker image and match against dictionary.
@@ -81,8 +81,11 @@ namespace papertracker {
             }
         }
 
+        // Local buffer for inner matrix, zero initialized.
+        std::array<uchar, innerSize * innerSize> bits_buffer {};
+
         // Extract inner matrix.
-        cv::Mat bits = cv::Mat::zeros(innerSize, innerSize, CV_8UC1);
+        cv::Mat bits(innerSize, innerSize, CV_8UC1, bits_buffer.data());
 
         for (int y = 0; y < innerSize; y++) {
             for (int x = 0; x < innerSize; x++) {
@@ -124,7 +127,7 @@ namespace papertracker {
             }
 
             // Rotate matrix 90 degrees for next iteration.
-            bits = rotate_marker_bits(bits);
+            rotate_marker_bits(bits);
         }
 
         // Validate marker.

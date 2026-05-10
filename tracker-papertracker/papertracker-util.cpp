@@ -17,22 +17,20 @@ namespace papertracker {
         if (rvecs.size() == 1)
             return rvecs[0];
 
-        std::vector<cv::Vec4d> quaternions;
+        cv::Matx33d R;
+        cv::Rodrigues(rvecs[0], R);
+        cv::Vec4d q_avg = rotation_matrix_to_quaternion(R);
 
-        for (size_t i = 0; i < rvecs.size(); ++i) {
-            cv::Mat R;
+        for (size_t i = 1; i < rvecs.size(); ++i) {
             cv::Rodrigues(rvecs[i], R);
-            quaternions.push_back(rotation_matrix_to_quaternion(R));
+            cv::Vec4d quat = rotation_matrix_to_quaternion(R);
+
+            if (q_avg.dot(quat) < 0)
+                quat = -quat;
+
+            q_avg += quat;
         }
 
-        cv::Vec4d q_avg = quaternions[0];
-        for (size_t i = 1; i < quaternions.size(); ++i) {
-            if (q_avg.dot(quaternions[i]) < 0)
-                quaternions[i] = -quaternions[i];
-            q_avg += quaternions[i];
-        }
-
-        q_avg /= (double)quaternions.size();
         q_avg /= cv::norm(q_avg);
 
         auto R_avg = quaternion_to_rotation_matrix(q_avg);
@@ -41,31 +39,6 @@ namespace papertracker {
         cv::Rodrigues(R_avg, rvec);
 
         return rvec;
-    }
-
-    /* Compute average rotation from an unordered map of rotation vectors.
-    */
-    cv::Vec3d average_rotation(const std::unordered_map<int, cv::Vec3d> &rvecs)
-    {
-        std::vector<cv::Vec3d> vectors;
-
-        for (auto p : rvecs)
-            vectors.push_back(p.second);
-
-        return average_rotation(vectors);
-    }
-
-    /* Compute average rotation from an unordered map of rotation vectors, excluding specified ID.
-    */
-    cv::Vec3d average_rotation(const std::unordered_map<int, cv::Vec3d> &rvecs, int exclude_id)
-    {
-        std::vector<cv::Vec3d> vectors;
-
-        for (auto p : rvecs)
-            if (p.first != exclude_id)
-                vectors.push_back(p.second);
-
-        return average_rotation(vectors);
     }
 
     /* Compute average translation from an std::vector of translation vectors.
@@ -92,31 +65,6 @@ namespace papertracker {
         return { avg_x, avg_y, avg_z };
     }
 
-    /* Compute average translation from an unordered map of translation vectors.
-    */
-    cv::Vec3d average_translation(const std::unordered_map<int, cv::Vec3d> &tvecs)
-    {
-        std::vector<cv::Vec3d> vectors;
-
-        for (auto p : tvecs)
-            vectors.push_back(p.second);
-
-        return average_translation(vectors);
-    }
-
-    /* Compute average translation from an unordered map of translation vectors, excluding specified id.
-    */
-    cv::Vec3d average_translation(const std::unordered_map<int, cv::Vec3d> &tvecs, int exclude_id)
-    {
-        std::vector<cv::Vec3d> vectors;
-
-        for (auto p : tvecs)
-            if (p.first != exclude_id)
-                vectors.push_back(p.second);
-
-        return average_translation(vectors);
-    }
-
     /* Compute radius from given circumference.
     */
     double circumference_to_radius(double circumference)
@@ -131,7 +79,7 @@ namespace papertracker {
     {
         double magnitude = cv::sqrt(cv::pow(direction[0], 2) + cv::pow(direction[1], 2));
         if (magnitude == 0)
-            return cv::Mat();
+            return cv::Vec2d();
 
         double nx = direction[0] / magnitude;
         double nz = direction[1] / magnitude;
@@ -143,23 +91,23 @@ namespace papertracker {
     */
     cv::Vec2d get_xz_direction_vector(const cv::Vec3d &rvec)
     {
-        cv::Mat R;
+        cv::Matx33d R;
         cv::Rodrigues(rvec, R);
 
         cv::Vec3d v = { 0, 0, -1 };
-        cv::Mat vt = R * v;
+        cv::Vec3d vt = R * v;
 
         double norm = cv::norm(vt);
 
         if (norm != 0)
             vt = vt / cv::norm(vt);
 
-        return cv::Vec2d(vt.at<double>(0), vt.at<double>(2));
+        return cv::Vec2d(vt(0), vt(2));
     }
 
     /* Convert rotation matrix to quaternion.
     */
-    cv::Vec4d rotation_matrix_to_quaternion(const cv::Mat &R)
+    cv::Vec4d rotation_matrix_to_quaternion(const cv::Matx33d &R)
     {
         const auto trace = cv::trace(R);
 
@@ -169,29 +117,29 @@ namespace papertracker {
         double y;
         double z;
 
-        if (trace[0] > 0.0) {
-            s = 0.5 / cv::sqrt(trace[0] + 1.0);
+        if (trace > 0.0) {
+            s = 0.5 / cv::sqrt(trace + 1.0);
             w = 0.25 / s;
-            x = (R.at<double>(2, 1) - R.at<double>(1, 2)) * s;
-            y = (R.at<double>(0, 2) - R.at<double>(2, 0)) * s;
-            z = (R.at<double>(1, 0) - R.at<double>(0, 1)) * s;
-        } else if (R.at<double>(0, 0) > R.at<double>(1, 1) && R.at<double>(0, 0) > R.at<double>(2, 2)) {
-            s = 2.0 * cv::sqrt(1.0 + R.at<double>(0, 0) - R.at<double>(1, 1) - R.at<double>(2, 2));
-            w = (R.at<double>(2, 1) - R.at<double>(1, 2)) / s;
+            x = (R(2, 1) - R(1, 2)) * s;
+            y = (R(0, 2) - R(2, 0)) * s;
+            z = (R(1, 0) - R(0, 1)) * s;
+        } else if (R(0, 0) > R(1, 1) && R(0, 0) > R(2, 2)) {
+            s = 2.0 * cv::sqrt(1.0 + R(0, 0) - R(1, 1) - R(2, 2));
+            w = (R(2, 1) - R(1, 2)) / s;
             x = 0.25 * s;
-            y = (R.at<double>(0, 1) + R.at<double>(1, 0)) / s;
-            z = (R.at<double>(0, 2) + R.at<double>(2, 0)) / s;
-        } else if (R.at<double>(1, 1) > R.at<double>(2, 2)) {
-            s = 2.0 * cv::sqrt(1.0 + R.at<double>(1, 1) - R.at<double>(0, 0) - R.at<double>(2, 2));
-            w = (R.at<double>(0, 2) - R.at<double>(2, 0)) / s;
-            x = (R.at<double>(0, 1) + R.at<double>(1, 0)) / s;
+            y = (R(0, 1) + R(1, 0)) / s;
+            z = (R(0, 2) + R(2, 0)) / s;
+        } else if (R(1, 1) > R(2, 2)) {
+            s = 2.0 * cv::sqrt(1.0 + R(1, 1) - R(0, 0) - R(2, 2));
+            w = (R(0, 2) - R(2, 0)) / s;
+            x = (R(0, 1) + R(1, 0)) / s;
             y = 0.25 * s;
-            z = (R.at<double>(1, 2) + R.at<double>(2, 1)) / s;
+            z = (R(1, 2) + R(2, 1)) / s;
         } else {
-            s = 2.0 * cv::sqrt(1.0 + R.at<double>(2, 2) - R.at<double>(0, 0) - R.at<double>(1, 1));
-            w = (R.at<double>(1, 0) - R.at<double>(0, 1)) / s;
-            x = (R.at<double>(0, 2) + R.at<double>(2, 0)) / s;
-            y = (R.at<double>(1, 2) + R.at<double>(2, 1)) / s;
+            s = 2.0 * cv::sqrt(1.0 + R(2, 2) - R(0, 0) - R(1, 1));
+            w = (R(1, 0) - R(0, 1)) / s;
+            x = (R(0, 2) + R(2, 0)) / s;
+            y = (R(1, 2) + R(2, 1)) / s;
             z = 0.25 * s;
         }
 
@@ -200,7 +148,7 @@ namespace papertracker {
 
     /* Convert quaternion to rotation matrix.
     */
-    cv::Mat quaternion_to_rotation_matrix(const cv::Vec4d &quat) {
+    cv::Matx33d quaternion_to_rotation_matrix(const cv::Vec4d &quat) {
         const double w = quat[0];
         const double x = quat[1];
         const double y = quat[2];
@@ -212,30 +160,19 @@ namespace papertracker {
                 2*x*z - 2*w*y,     2*y*z + 2*w*x, 1 - 2*x*x - 2*y*y
         };
 
-        return cv::Mat(3, 3, CV_64F, data).clone();
-    }
-
-    /* Multiply two quaternions.
-    */
-    cv::Vec4d quaternion_multiply(const cv::Vec4d &q1, const cv::Vec4d &q2) {
-        const double w = q1[0]*q2[0] - q1[1]*q2[1] - q1[2]*q2[2] - q1[3]*q2[3];
-        const double x = q1[0]*q2[1] + q1[1]*q2[0] + q1[2]*q2[3] - q1[3]*q2[2];
-        const double y = q1[0]*q2[2] - q1[1]*q2[3] + q1[2]*q2[0] + q1[3]*q2[1];
-        const double z = q1[0]*q2[3] + q1[1]*q2[2] - q1[2]*q2[1] + q1[3]*q2[0];
-
-        return { w, x, y, z };
+        return cv::Matx33d(data);
     }
 
     /* Convert rotation matrix to euler angles (ZYX).
     */
-    cv::Vec3d rotation_matrix_to_euler_zyx(const cv::Mat &R) {
-        const double r00 = R.at<double>(0, 0);
-        const double r10 = R.at<double>(1, 0);
-        const double r11 = R.at<double>(1, 1);
-        const double r12 = R.at<double>(1, 2);
-        const double r20 = R.at<double>(2, 0);
-        const double r21 = R.at<double>(2, 1);
-        const double r22 = R.at<double>(2, 2);
+    cv::Vec3d rotation_matrix_to_euler_zyx(const cv::Matx33d &R) {
+        const double r00 = R(0, 0);
+        const double r10 = R(1, 0);
+        const double r11 = R(1, 1);
+        const double r12 = R(1, 2);
+        const double r20 = R(2, 0);
+        const double r21 = R(2, 1);
+        const double r22 = R(2, 2);
 
         double sy = sqrt(r00*r00 + r10*r10);
 
@@ -259,15 +196,13 @@ namespace papertracker {
     /* Get marker's local transform relative to a reference head pose.
     */
     std::pair<cv::Vec3d, cv::Vec3d> get_marker_local_transform(const cv::Vec3d &rvec_measured, const cv::Vec3d &tvec_measured, const cv::Vec3d &pose_rvec, const cv::Vec3d &pose_tvec) {
-        cv::Vec3d rvec_local;
-        cv::Vec3d tvec_local;
-
-        cv::Mat R_body_to_camera;
+        cv::Matx33d R_body_to_camera;
         cv::Rodrigues(pose_rvec, R_body_to_camera);
 
-        cv::Mat R_marker_to_camera;
+        cv::Matx33d R_marker_to_camera;
         cv::Rodrigues(rvec_measured, R_marker_to_camera);
 
+        const cv::Vec3d rvec_local;
         cv::Rodrigues(R_body_to_camera.inv() * R_marker_to_camera, rvec_local);
 
         cv::Vec3d tvec_relative(3);
@@ -275,16 +210,15 @@ namespace papertracker {
         tvec_relative[1] = tvec_measured[1] - pose_tvec[1];
         tvec_relative[2] = tvec_measured[2] - pose_tvec[2];
 
-        cv::Mat tvec_local_mat = R_body_to_camera.inv() * cv::Mat(tvec_relative);
-        tvec_local = tvec_local_mat.reshape(1, 1);
+        const cv::Vec3d tvec_local = R_body_to_camera.inv() * tvec_relative;
 
         return {rvec_local, tvec_local};
     }
 
     /* Get the angle between a marker and the camera's Z axis given the marker's rotation matrix.
     */
-    double get_marker_z_angle(const cv::Mat &R) {
-        const cv::Vec3d marker_z(R.at<double>(0, 2), R.at<double>(1, 2), R.at<double>(2, 2));
+    double get_marker_z_angle(const cv::Matx33d &R) {
+        const cv::Vec3d marker_z(R(0, 2), R(1, 2), R(2, 2));
         const cv::Vec3d camera_z(0.0, 0.0, -1.0);
 
         const double cosine = std::clamp(marker_z.dot(camera_z), -1.0, 1.0);
@@ -296,7 +230,7 @@ namespace papertracker {
     /* Get the angle between a marker and the camera's Z axis given the marker's rotation vector.
     */
     double get_marker_z_angle(const cv::Vec3d &rvec) {
-        cv::Mat R;
+        cv::Matx33d R;
         cv::Rodrigues(rvec, R);
 
         return get_marker_z_angle(R);
@@ -305,12 +239,12 @@ namespace papertracker {
     /* Get the angle between rotations for a pair of rotation vectors.
     */
     double angle_between_rotations(const cv::Vec3d &v1, const cv::Vec3d &v2) {
-        cv::Mat R1, R2;
+        cv::Matx33d R1, R2;
         cv::Rodrigues(v1, R1);
         cv::Rodrigues(v2, R2);
 
-        const cv::Mat R_diff = R1.t() * R2;
-        const double trace = R_diff.at<double>(0,0) + R_diff.at<double>(1,1) + R_diff.at<double>(2,2);
+        const cv::Matx33d R_diff = R1.t() * R2;
+        const double trace = R_diff(0,0) + R_diff(1,1) + R_diff(2,2);
         const double cos_angle = std::clamp((trace - 1.0) / 2.0, -1.0, 1.0);
 
         return acos(cos_angle);
@@ -318,7 +252,7 @@ namespace papertracker {
 
     /* Get a tight bounding box for a set of markers.
     */
-    cv::Rect2f get_marker_bounding_box(const std::vector<std::vector<cv::Point2f>> &markers)
+    cv::Rect2f get_marker_bounding_box(const std::vector<std::array<cv::Point2f, 4>> &markers)
     {
         if (markers.size() == 0 || markers[0].size() == 0)
             return cv::Rect2f(0, 0, 0, 0);
@@ -393,7 +327,7 @@ namespace papertracker {
        midpoint will no longer represent the marker set's actual midpoint. This algorithm
        can, at least in some cases, give a better estimate than the naive approach.
     */
-    float get_marker_line_of_symmetry(const std::vector<std::vector<cv::Point2f>> &markers) {
+    float get_marker_line_of_symmetry(const std::vector<std::array<cv::Point2f, 4>> &markers) {
         if (markers.size() == 0)
             return 0;
 
@@ -479,11 +413,8 @@ namespace papertracker {
 
     /* Determine whether a vertical line intersects the given marker.
     */
-    bool vertical_line_intersects_marker(const float line_x, const std::vector<cv::Point2f> &corners)
+    bool vertical_line_intersects_marker(const float line_x, const std::array<cv::Point2f, 4> &corners)
     {
-        if (corners.size() != 4)
-            return false;
-
         for (size_t i = 0; i < corners.size(); ++i) {
             const auto p0 = corners[i];
             const auto p1 = corners[(i + 1) % corners.size()];

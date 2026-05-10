@@ -43,19 +43,18 @@ namespace papertracker {
         cv::Vec3d pose_rvec;
         cv::Vec3d pose_tvec;
 
-        cv::Mat R_marker;
+        cv::Matx33d R_marker;
         cv::Rodrigues(rvec_measured, R_marker);
 
-        cv::Mat R_handle;
+        cv::Matx33d R_handle;
         cv::Rodrigues(handles[id].rvec_local.get(), R_handle);
 
-        cv::Mat R_pose = R_marker * R_handle.inv();
+        cv::Matx33d R_pose = R_marker * R_handle.inv();
         cv::Rodrigues(R_pose, pose_rvec);
 
         const auto marker_tvec = handle_origin + handles[id].tvec_local.get();
 
-        cv::Mat pose_tvec_mat = R_pose * cv::Mat(-marker_tvec) + cv::Mat(tvec_measured);
-        pose_tvec = pose_tvec_mat.reshape(1, 1);
+        pose_tvec = R_pose * -marker_tvec + tvec_measured;
 
         return {pose_rvec, pose_tvec};
     }
@@ -64,14 +63,14 @@ namespace papertracker {
     {
         std::vector<int> visible;
 
-        cv::Mat R_head;
+        cv::Matx33d R_head;
         cv::Rodrigues(rvec, R_head);
 
         for (const auto &handle : handles) {
-            cv::Mat R_handle;
+            cv::Matx33d R_handle;
             cv::Rodrigues(handle.second.rvec_local.get(), R_handle);
 
-            cv::Mat R_composite = R_head * R_handle;
+            cv::Matx33d R_composite = R_head * R_handle;
 
             const double angle = get_marker_z_angle(R_composite);
 
