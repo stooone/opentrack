@@ -229,6 +229,10 @@ Press &quot;clear calibration&quot; to remove any calibration data pertaining to
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Auto-center if still</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Relative translation only</source>
         <translation type="unfinished"></translation>
     </message>

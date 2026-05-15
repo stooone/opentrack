@@ -206,6 +206,10 @@ Klicke „Kalibrierung löschen“, um jegliche Kalibrierungsdaten der zugehöri
         <translation>Zentrieren beim Start</translation>
     </message>
     <message>
+        <source>Auto-center if still</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Disabled</source>
         <translation>Abgeschaltet</translation>
     </message>

@@ -106,6 +106,12 @@ class OTR_LOGIC_EXPORT pipeline : private QThread
     time_units::ms backlog_time {};
 
     bool tracking_started = false;
+    
+    // Auto-centering state
+    Timer stillness_timer;
+    Timer auto_center_timer;
+    Pose anchor_pose;
+    bool is_still = false;
 
     static double map(double pos, const Map& axis);
     void logic();

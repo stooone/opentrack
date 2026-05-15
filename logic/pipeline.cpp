@@ -472,6 +472,45 @@ void pipeline::logic()
         nan_check(value);
 
         {
+            bool movement_detected = false;
+            for (int i = 0; i < 6; i++) {
+                if (std::abs(value(i) - anchor_pose(i)) > 1.5) {
+                    movement_detected = true;
+                    break;
+                }
+            }
+            
+            if (movement_detected) {
+                anchor_pose = value;
+                stillness_timer.start();
+                is_still = false;
+            } else if (stillness_timer.elapsed_seconds() > 5.0) {
+                is_still = true;
+            }
+
+            if (is_still && s.auto_center && s.centering_mode != center_disabled && !own_center_logic) {
+                double dt = auto_center_timer.elapsed_seconds();
+                double speed = 1.0 / 3.0; // 1 pixel/degree per 3 seconds
+                double max_step = speed * dt;
+                
+                bool updated = false;
+                for (int i = 0; i < 6; i++) {
+                    double diff = value(i) - center.P(i);
+                    if (std::abs(diff) > 0.0001) {
+                        center.P(i) += std::clamp(diff, -max_step, max_step);
+                        updated = true;
+                    }
+                }
+
+                if (updated) {
+                    center.QC = dquat::from_euler(center.P[Pitch], center.P[Yaw], -center.P[Roll]).conjugated();
+                    center.QR = dquat::from_euler(center.P[Pitch], center.P[Yaw], 0).conjugated();
+                }
+            }
+            auto_center_timer.start();
+        }
+
+        {
             nan_check(value);
             auto valueʹ = apply_center(s.centering_mode, value);
             nan_check(valueʹ);
