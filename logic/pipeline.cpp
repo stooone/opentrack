@@ -255,6 +255,7 @@ bool pipeline::maybe_enable_center_on_tracking_started()
             if (std::fabs(m_newpose(i)) != 0)
             {
                 tracking_started = true;
+                m_newpose_prev = m_newpose;
                 break;
             }
 
@@ -474,11 +475,36 @@ void pipeline::logic()
         if (s.auto_center && s.centering_mode != center_disabled && !own_center_logic) {
             double dt = auto_center_timer.elapsed_seconds();
             double speed = s.auto_center_speed; 
+            
+            // Dynamic Velocity Threshold
+            // If the head is moving fast, stop auto-centering to avoid fighting the user.
+            double vel_threshold = s.auto_center_velocity_threshold;
+            bool is_moving_fast = false;
+            if (dt > 1e-4) {
+                for (int i = 0; i < 6; i++) {
+                    double v = std::abs(m_newpose(i) - m_newpose_prev(i)) / dt;
+                    if (v > vel_threshold) {
+                        is_moving_fast = true;
+                        break;
+                    }
+                }
+            }
+
+            if (is_moving_fast)
+                speed = 0;
+
             double max_step = speed * dt;
+            double deadzone = s.auto_center_deadzone;
             
             bool updated = false;
             for (int i = 0; i < 6; i++) {
                 double diff = value(i) - center.P(i);
+                
+                // Dead Zone Core
+                // If within deadzone, don't update this axis.
+                if (std::abs(diff) < deadzone)
+                    continue;
+
                 if (std::abs(diff) > 0.0001) {
                     center.P(i) += std::clamp(diff, -max_step, max_step);
                     updated = true;
@@ -575,6 +601,8 @@ ok:
 
     logger.reset_dt();
     logger.next_line();
+
+    m_newpose_prev = m_newpose;
 }
 
 #ifdef DEBUG_TIMINGS
