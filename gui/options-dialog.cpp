@@ -64,6 +64,7 @@ options_dialog::options_dialog(std::unique_ptr<ITrackerDialog>& tracker_dialog_,
 
     tie_setting(main.center_at_startup, ui.center_at_startup);
     tie_setting(main.auto_center, ui.auto_center);
+    tie_setting(main.auto_center_speed, ui.auto_center_speed);
 
     const centering_state centering_modes[] = {
         center_disabled,
