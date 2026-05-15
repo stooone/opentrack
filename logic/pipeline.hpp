@@ -88,7 +88,8 @@ class OTR_LOGIC_EXPORT pipeline : private QThread
     Timer t;
     // Pose members are prefixed to avoid confusion since there are so many
     // pose variables.
-    Pose m_output_pose, m_raw_6dof, m_last_value, m_newpose;
+    Pose m_output_pose, m_raw_6dof, m_last_value, m_newpose, m_newpose_prev;
+    double m_last_dt = 1e-2;
 
     runtime_libraries const& libs;
     // The owner of the reference is the main window.
