@@ -54,6 +54,7 @@ find_library(ONNXRuntime_LIBRARY onnxruntime
     )
 
 if(WIN32)
+    set(_CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
     SET(CMAKE_FIND_LIBRARY_SUFFIXES ".dll" ".DLL")
     find_library(ONNXRuntime_RUNTIME onnxruntime
         HINTS ${ONNXRuntime_DIR}
@@ -63,6 +64,15 @@ if(WIN32)
         # For the nuget package
         "runtimes/${ONNXRuntime_Arch}/native"
     )
+    find_library(ONNXRuntime_PROVIDERS_SHARED_RUNTIME onnxruntime_providers_shared
+        HINTS ${ONNXRuntime_DIR}
+        PATH_SUFFIXES 
+        # For a "normal" installation
+        "lib" "lib64" "bin"
+        # For the nuget package
+        "runtimes/${ONNXRuntime_Arch}/native"
+    )
+    SET(CMAKE_FIND_LIBRARY_SUFFIXES ${_CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
 else()
     SET(ONNXRuntime_RUNTIME ${ONNXRuntime_LIBRARY})
 endif()
