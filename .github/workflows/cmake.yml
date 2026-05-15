@@ -86,7 +86,7 @@ jobs:
       run: |
         curl -sL https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-1.23.2.zip -o onnx.zip
         unzip -q onnx.zip -d onnx-extracted
-        mv onnx-extracted/onnxruntime-win-x64-1.23.2 ${{github.workspace}}/${{matrix.onnx_dir}}
+        mv onnx-extracted/onnxruntime-win-x64-1.23.2 ${{matrix.onnx_dir}}
       if: matrix.os == 'windows-latest'
 
     - name: Configure (Unix)
