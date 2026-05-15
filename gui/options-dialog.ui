@@ -847,6 +847,19 @@
             </property>
            </widget>
           </item>
+          <item row="1" column="2">
+           <widget class="QCheckBox" name="auto_center">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Auto-center if still</string>
+            </property>
+           </widget>
+          </item>
           <item row="1" column="1">
            <widget class="QLabel" name="label_29">
             <property name="text">

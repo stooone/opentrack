@@ -291,6 +291,10 @@ Press &quot;clear calibration&quot; to remove any calibration data pertaining to
         <translation>Исходная ось</translation>
     </message>
     <message>
+        <source>Auto-center if still</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Relative translation only</source>
         <translation>Только относительный сдвиг</translation>
     </message>

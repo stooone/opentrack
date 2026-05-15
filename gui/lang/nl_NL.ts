@@ -185,6 +185,10 @@ Press &quot;clear calibration&quot; to remove any calibration data pertaining to
         <translation>Automatisch centreren bij starten van tracking</translation>
     </message>
     <message>
+        <source>Auto-center if still</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Minimize to tray</source>
         <translation>Minimaliseren naar taakbalk</translation>
     </message>
