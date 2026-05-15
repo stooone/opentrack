@@ -29,7 +29,7 @@ jobs:
           onnx_dir: /usr
         - os: windows-latest
           cmake: .\.github\workflows\build-windows.bat cmake
-          onnx_dir: ${{github.workspace}}/onnxruntime-win
+          onnx_dir: onnxruntime-win
 
     steps:
     - name: clone opentrack/opentrack
@@ -86,11 +86,16 @@ jobs:
       run: |
         curl -sL https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-1.23.2.zip -o onnx.zip
         unzip -q onnx.zip -d onnx-extracted
-        mv onnx-extracted/onnxruntime-win-x64-1.23.2 ${{matrix.onnx_dir}}
+        mv onnx-extracted/onnxruntime-win-x64-1.23.2 ${{github.workspace}}/${{matrix.onnx_dir}}
       if: matrix.os == 'windows-latest'
 
-    - name: Configure
+    - name: Configure (Unix)
       run: ${{matrix.cmake}} -GNinja -S ${{github.workspace}}/ -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DQt6_DIR="${{env.QT_ROOT_DIR}}/lib/cmake/Qt6" -DONNXRuntime_DIR="${{matrix.onnx_dir}}"
+      if: matrix.os != 'windows-latest'
+
+    - name: Configure (Windows)
+      run: ${{matrix.cmake}} -GNinja -S ${{github.workspace}}/ -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DQt6_DIR="${{env.QT_ROOT_DIR}}/lib/cmake/Qt6" -DONNXRuntime_DIR="${{github.workspace}}/${{matrix.onnx_dir}}"
+      if: matrix.os == 'windows-latest'
 
     - name: Build
       run: ${{matrix.cmake}} --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target install
