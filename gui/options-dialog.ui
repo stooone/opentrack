@@ -847,7 +847,7 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="2">
+          <item row="1" column="0">
            <layout class="QHBoxLayout" name="auto_center_layout">
             <item>
              <widget class="QCheckBox" name="auto_center">
