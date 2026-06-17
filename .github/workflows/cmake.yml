@@ -71,6 +71,14 @@ jobs:
       run: brew install opencv
       if: matrix.os == 'macos-latest'
 
+    - name: Install Visual Studio
+      uses: microsoft/setup-msbuild@v1
+      if: matrix.os == 'windows-latest'
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      if: matrix.os == 'windows-latest'
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:

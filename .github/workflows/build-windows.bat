@@ -1,3 +1,18 @@
-set path=C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Program Files\CMake\bin;C:\Program Files\Git\cmd;%GITHUB_WORKSPACE%/ninja-build
-"C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvars64.bat" >nul && %*
-exit /b %ERRORLEVEL%
+@echo off
+setlocal enabledelayedexpansion
+
+:: Try to find Visual Studio
+for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do (
+  set "VS_PATH=%%i"
+)
+
+if not defined VS_PATH (
+  echo Visual Studio not found
+  exit /b 1
+)
+
+:: Call vcvarsall to set up the environment
+call "!VS_PATH!\VC\Auxiliary\Build\vcvarsall.bat" x64
+
+:: Run cmake or your build command
+%*
